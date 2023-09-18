@@ -1,5 +1,5 @@
 [package]
-name = "rust-tutorial"
+name = "ray_tracing"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,4 @@ glam = "0.24.1"
 indicatif = "0.17.6"
 itertools = "0.11.0"
 vec3 = "0.2.1"
+rand = "0.8.5"
