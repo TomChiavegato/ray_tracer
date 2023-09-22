@@ -1,5 +1,3 @@
-use std::cmp::min;
-use std::fmt::Error;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
@@ -12,10 +10,7 @@ use rand::Rng;
 fn main() -> io::Result<()>{
     //image
     let aspect_ratio: f64 = 16.0 / 9.0;
-    let image_width: u32 = 800;
-
-    let a = f64::sin(std::f64::consts::PI/4.0)/2.0;
-    let b = f64::cos(f64::asin(a));
+    let image_width: u32 = 1920;
     let camera: Camera = Camera::new(image_width, aspect_ratio);
 
     //World
@@ -45,12 +40,12 @@ fn main() -> io::Result<()>{
                 center: DVec3::new(-0.5, -0.4375, 0.5),
                 radius: 0.125,
                 material: Material::Metal {attenuation: DVec3::new(0.1, 0.1, 0.8), fuzz: 0.5},
-            }),
+            }),/*
             Box::new(Sphere{
                 center: DVec3::new(-1.0, 0.0, 1.0),
                 radius: 0.5,
                 material: Material::Dielectric {attenuation: DVec3::new(1.0, 1.0, 1.0), index_of_refraction: 1.7},
-            }),
+            }),*/
         ]
     };
 
@@ -177,7 +172,7 @@ impl Hittable for Sphere {
         if !interval.contains(&t1) {
 
             let t2: f64 = (-half_b + sqrted) / a;
-            if((0.0..interval.start).contains(&t1) || (0.0..interval.start).contains(&t2)){
+            if (0.0..interval.start).contains(&t1) || (0.0..interval.start).contains(&t2) {
                 return None;
             }
             if !interval.contains(&t2) {
@@ -193,7 +188,7 @@ impl Hittable for Sphere {
         }
         let normal = (p - self.center) / self.radius;
         let front_face = r.direction.dot(normal) < 0.0;
-        if(!front_face){
+        if !front_face {
             let normal = -normal;
         }
 
@@ -361,7 +356,7 @@ enum Material{
 
 impl Material{
     fn scatter(&self, hit_record: &HitRecord) -> Option<(Ray, &DVec3)>{
-        match(self){
+        match self {
             Material::Metal {attenuation, fuzz} =>{
 
                 let direction = reflect(hit_record.incident_dir, hit_record.normal, fuzz);
@@ -374,7 +369,7 @@ impl Material{
 
             Material::Diffuse {attenuation} =>{
                 let direction = rand_vec_on_hemisphere(&hit_record.normal)+hit_record.normal;
-                if(is_near_zero(&direction)){
+                if is_near_zero(&direction) {
                     let direction = hit_record.normal;
                 }
                 let new_ray = Ray{
@@ -384,7 +379,7 @@ impl Material{
             }
 
             Material::Dielectric {attenuation, index_of_refraction} => {
-                let mut refraction_ratio: f64;
+                let refraction_ratio: f64;
                 if hit_record.front_face {    refraction_ratio = 1.0/index_of_refraction;  }
                 else { refraction_ratio = *index_of_refraction; }
                 let refracted = refract(hit_record.incident_dir.normalize(), hit_record.normal.normalize(), refraction_ratio);
@@ -396,14 +391,12 @@ impl Material{
                 };
                 Some((scattered, attenuation))
             }
-            _ => None
 
         }
     }
 }
 
 fn linear_to_gamma(n1:f64, n2:f64, n3:f64) -> (f64, f64, f64){
-    let e = DVec3::MIN;
     return (n1.sqrt()*255.0, n2.sqrt()*255.0, n3.sqrt()*255.0);
 }
 
