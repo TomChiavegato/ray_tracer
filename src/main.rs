@@ -2,10 +2,12 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use itertools::Itertools;
-use indicatif::ProgressIterator;
+use indicatif::ParallelProgressIterator;
+//use indicatif::ProgressIterator;
 use glam::f64::DVec3;
 use std::ops::Range;
 use rand::Rng;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 fn main() -> io::Result<()>{
     //image
@@ -17,17 +19,13 @@ fn main() -> io::Result<()>{
     let world = HittableList{
         objects: vec![
             Box::new(Sphere{
-                center: DVec3::new(0.0, 0.0, 1.0),
-                radius: 0.5,
-                material: Material::Diffuse {attenuation: DVec3::new(0.5, 0.5, 0.5)},
-            }),
-            Box::new(Sphere{
                 center: DVec3::new(0.0, -100.5, 1.0),
                 radius: 100.0,
                 material: Material::Diffuse {attenuation: DVec3::new(0.1, 0.8, 0.1)},
             }),
+
             Box::new(Sphere{
-                center: DVec3::new(1.0, 0.1, 1.0),
+                center: DVec3::new(1.0, 0.0, 1.0),
                 radius: 0.5,
                 material: Material::Metal {attenuation: DVec3::new(0.95, 0.8, 0.15), fuzz: 0.0},
             }),
@@ -37,19 +35,61 @@ fn main() -> io::Result<()>{
                 material: Material::Diffuse {attenuation: DVec3::new(0.9, 0.1, 0.1)},
             }),
             Box::new(Sphere{
-                center: DVec3::new(-0.5, -0.4375, 0.5),
+                center: DVec3::new(1.5, -0.125, 4.25),
+                radius: 0.25,
+                material: Material::Diffuse {attenuation: DVec3::new(0.9, 0.1, 0.1)},
+            }),
+            Box::new(Sphere{
+                center: DVec3::new(2.0, -0.125, 4.25),
+                radius: 0.25,
+                material: Material::Diffuse {attenuation: DVec3::new(0.1, 0.1, 0.9)},
+            }),
+            Box::new(Sphere{
+                center: DVec3::new(-0.2, -0.4375, 0.5),
                 radius: 0.125,
                 material: Material::Metal {attenuation: DVec3::new(0.1, 0.1, 0.8), fuzz: 0.5},
-            }),/*
+            }),
+            Box::new(RectPrism{
+                center: DVec3::new(-4.5, 2.0, 4.5),
+                dimentions: DVec3::new(2., 0.2, 1.),
+                material: Material::Metal {attenuation: DVec3::new(0.8, 0.5, 0.5), fuzz: 0.2},
+            }),
+            Box::new(RectPrism{
+                center: DVec3::new(-4.5, 2.4, 4.5),
+                dimentions: DVec3::new(2., 0.2, 1.),
+                material: Material::Metal {attenuation: DVec3::new(0.8, 0.5, 0.5), fuzz: 0.2},
+            }),
+            Box::new(RectPrism{
+                center: DVec3::new(-4.5, 2.8, 4.5),
+                dimentions: DVec3::new(2., 0.2, 1.),
+                material: Material::Metal {attenuation: DVec3::new(0.8, 0.5, 0.5), fuzz: 0.2},
+            }),
+            Box::new(RectPrism{
+                center: DVec3::new(40.0, 40.0, 40.0),
+                dimentions: DVec3::new(70.0, 100.0, 2.0),
+                material: Material::Metal {attenuation: DVec3::new(0.6, 0.6, 0.6), fuzz: 0.0},
+            }),
             Box::new(Sphere{
-                center: DVec3::new(-1.0, 0.0, 1.0),
+                center: DVec3::new(0.0, 0.0, 1.5),
                 radius: 0.5,
-                material: Material::Dielectric {attenuation: DVec3::new(1.0, 1.0, 1.0), index_of_refraction: 1.7},
-            }),*/
+                material: Material::Dielectric {attenuation: DVec3::new(0.98, 0.98, 0.98), index_of_refraction: 1.51},
+            }),
+            Box::new(RectPrism{
+                center: DVec3::new(-3.5, 2.8, 7.0),
+                dimentions: DVec3::new(1.0, 100.0, 1.0),
+                material: Material::Metal {attenuation: DVec3::new(0.1, 0.1, 0.9), fuzz: 0.5},
+            }),
+
+            Box::new(RectPrism{
+                center: DVec3::new(-1.0, -0.5, 1.0),
+                dimentions: DVec3::new(0.4, 0.8, 0.4),
+                material: Material::Diffuse {attenuation: DVec3::new(0.9, 0.1, 0.9)},
+            }),
+
         ]
     };
 
-    camera.render_to_disk(&world)
+    camera.render_to_disk(world)
 }
 
 struct Ray {
@@ -98,14 +138,16 @@ trait Hittable {
 }
 
 struct HittableList{
-    objects: Vec<Box<dyn Hittable>>,
+    objects: Vec<Box<dyn Hittable + Sync>>,
 }
+
+
 impl HittableList{
     fn clear(&mut self){
         self.objects = vec![]
     }
 
-    fn add<T>(&mut self, object: T) where T: Hittable + 'static,{
+    fn add<T>(&mut self, object: T) where T: Hittable + Sync + 'static,{
         self.objects.push(Box::new(object));
     }
 }
@@ -172,9 +214,6 @@ impl Hittable for Sphere {
         if !interval.contains(&t1) {
 
             let t2: f64 = (-half_b + sqrted) / a;
-            if (0.0..interval.start).contains(&t1) || (0.0..interval.start).contains(&t2) {
-                return None;
-            }
             if !interval.contains(&t2) {
                 return None;
             }
@@ -186,14 +225,14 @@ impl Hittable for Sphere {
             p = r.at(t1);
             t=t1;
         }
-        let normal = (p - self.center) / self.radius;
+        let mut normal = (p - self.center) / self.radius;
         let front_face = r.direction.dot(normal) < 0.0;
         if !front_face {
-            let normal = -normal;
+            normal = -normal;
         }
 
         return Some(HitRecord{
-            t: t,
+            t,
             p,
             normal,
             incident_dir: r.direction,
@@ -201,6 +240,83 @@ impl Hittable for Sphere {
             front_face,
         });
     }
+}
+
+struct RectPrism{
+    center: DVec3,
+    dimentions: DVec3,
+    material: Material,
+}
+
+impl Hittable for RectPrism{
+    fn hit(&self, r: &Ray, interval: &Range<f64>) -> Option<HitRecord>{
+
+        let mut closest_so_far: HitRecord = HitRecord{
+            p: DVec3::ZERO,
+            normal: DVec3::ZERO,
+            incident_dir: DVec3::ZERO,
+            t: f64::MAX,
+            material: Material::Diffuse {attenuation: DVec3::ZERO},
+            front_face: true,
+        };
+
+        for x in 0..6 {
+            //Check where the ray intersects plane defining each face
+            let p;
+            let normal;
+            match x {
+                0 => {p = self.center+DVec3::new(self.dimentions.x/2.0, 0.0, 0.0); normal = DVec3::X;}
+                1 => {p = self.center+DVec3::new(0.0, self.dimentions.y/2.0, 0.0); normal = DVec3::Y;}
+                2 => {p = self.center+DVec3::new(0.0, 0.0, self.dimentions.z/2.0); normal = DVec3::Z;}
+                3 => {p = self.center-DVec3::new(self.dimentions.x/2.0, 0.0, 0.0); normal = DVec3::NEG_X;}
+                4 => {p = self.center-DVec3::new(0.0, self.dimentions.y/2.0, 0.0); normal = DVec3::NEG_Y;}
+                _ => {p = self.center-DVec3::new(0.0, 0.0, self.dimentions.z/2.0); normal = DVec3::NEG_Z;}
+            }
+            let t = intersects_plane(normal, p, r.direction, r.origin);
+
+            let poi = r.at(t);
+
+            //eliminate intersections outside of bounds of face
+            let diff = self.center-self.dimentions/2.0;
+            let sum = self.center+self.dimentions/2.0;
+
+            let within_bounds: bool = match x%3{
+                //yz
+                0 => {poi.y >= diff.y && poi.y <= sum.y
+                    && poi.z >= diff.z && poi.z <= sum.z}
+                //xz
+                1 => {poi.x >= diff.x && poi.x <= sum.x
+                    && poi.z >= diff.z && poi.z <= sum.z}
+                //xy
+                _ => {poi.y >= diff.y && poi.y <= sum.y
+                    && poi.x >= diff.x && poi.x <= sum.x }
+            };
+            if within_bounds {
+                //eliminate intersections behind other intersections
+                if t<closest_so_far.t && interval.contains(&t) {
+                    let record = HitRecord{
+                        p: poi,
+                        normal,
+                        incident_dir: r.direction,
+                        t,
+                        material: self.material.clone(),
+                        front_face: r.direction.dot(normal) < 0.0,
+                    };
+                    closest_so_far = record;
+                }
+
+            }
+        }
+        //take closest one remaining or return none if it never hit
+        if closest_so_far.t == f64::MAX{
+            return None;
+        }
+        return Some(closest_so_far);
+    }
+}
+
+fn intersects_plane(normal: DVec3, p: DVec3, m: DVec3, q: DVec3) -> f64{
+    return (normal.dot(p)-normal.dot(q))/normal.dot(m);
 }
 
 struct Camera{
@@ -281,7 +397,7 @@ impl Camera{
 
     }
 
-    fn render_to_disk<T>(&self, world: &T) -> io::Result<()> where T: Hittable,{
+    fn render_to_disk<T>(&self, world: T) -> io::Result<()> where T: Hittable + std::marker::Sync,{
         //Render
         let mut file = File::create("img.ppm").expect("Could not create file");
         file.write_all(b"P3\n").expect("error writing to file");
@@ -294,22 +410,28 @@ impl Camera{
 
         let pixels = (0..self.image_height)
             .cartesian_product(0..self.image_width)
-            .progress_count((self.image_width as u64) * (self.image_height as u64))
+            .collect::<Vec<(u32, u32)>>()
+            //.into_iter()
+            .into_par_iter()
+            .progress_count(
+                self.image_height as u64
+                    * self.image_width as u64,
+            )
             .map(|(y, x)| {
 
                 let scale_factor = (self.samples_per_pixel as f64).recip();
 
-                let multisampled_pixel_color = (0..(self.samples_per_pixel)).map(|_| {
+                let multisampled_pixel_color = (0..(self.samples_per_pixel)).into_iter().map(|_| {
                     self.get_ray(x, y)
-                        .color(world, &self.background_color, self.max_depth)
+                        .color(&world, &self.background_color, self.max_depth)
                     *scale_factor
                 })
                     .sum::<DVec3>();
                 //Apply linear to gamma transform
                 let (r, g, b) = linear_to_gamma(multisampled_pixel_color.x, multisampled_pixel_color.y, multisampled_pixel_color.z);
                 format!("{} {} {}", r as u8, g  as u8, b as u8)
-                //format!("{} {} {}", multisampled_pixel_color.x.sqrt() as u8, multisampled_pixel_color.y.sqrt()  as u8, multisampled_pixel_color.z.sqrt() as u8)
             })
+            .collect::<Vec<String>>()
             .join("\n");
 
         file.write_all(pixels.as_bytes()).expect("error writing to file");
@@ -368,9 +490,9 @@ impl Material{
             }
 
             Material::Diffuse {attenuation} =>{
-                let direction = rand_vec_on_hemisphere(&hit_record.normal)+hit_record.normal;
+                let mut direction = rand_vec_on_hemisphere(&hit_record.normal)+hit_record.normal;
                 if is_near_zero(&direction) {
-                    let direction = hit_record.normal;
+                    direction = hit_record.normal;
                 }
                 let new_ray = Ray{
                     origin: hit_record.p,
@@ -382,18 +504,43 @@ impl Material{
                 let refraction_ratio: f64;
                 if hit_record.front_face {    refraction_ratio = 1.0/index_of_refraction;  }
                 else { refraction_ratio = *index_of_refraction; }
-                let refracted = refract(hit_record.incident_dir.normalize(), hit_record.normal.normalize(), refraction_ratio);
+
+                let r_incoming = hit_record.incident_dir.normalize();
+                let normal = hit_record.normal.normalize();
+
+                let cos_theta = f64::min( (-r_incoming).dot(normal) , 1.0);
+                let sin_theta = (1.0 - cos_theta*cos_theta).sqrt();
+
+                let cannot_refract = refraction_ratio * sin_theta > 1.0;
+                let direction;
+
+                let mut rng = rand::thread_rng();
+
+                if cannot_refract || reflectance(cos_theta, refraction_ratio) > rng.gen::<f64>() {
+                    //reflect
+                    direction = reflect(r_incoming, normal, &0.0);
+                }else{
+                    //can refract
+                    direction = refract(r_incoming, normal, refraction_ratio);
+                }
+
                 //println!("Incoming: {}, \nNormal: {}, \nRefracted: {}",hit_record.incident_dir, hit_record.normal, refracted);
                 //println!("ratio: {}, front-face: {}",refraction_ratio, hit_record.front_face);
                 let scattered = Ray{
                     origin: hit_record.p,
-                    direction: refracted,
+                    direction,
                 };
                 Some((scattered, attenuation))
             }
 
         }
     }
+}
+
+fn reflectance(cosine: f64, ref_idx: f64) -> f64{
+    //Schlick's approximation
+    let r0: f64 = ((1.0-ref_idx) / (1.0+ref_idx)).powi(2);
+    return r0 + (1.0-r0)*(1.0-cosine).powi(5);
 }
 
 fn linear_to_gamma(n1:f64, n2:f64, n3:f64) -> (f64, f64, f64){
