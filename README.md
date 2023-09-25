@@ -6,7 +6,7 @@ most of the project without looking at the video.
 The ray tracer takes a list of "hittable" objects and then writes the render to a .ppm image file.
 </p>
 
-![img](https://github.com/TomChiavegato/ray_tracer/assets/129907786/886d9e9b-9829-45da-bd40-ea34896572e6)
+![img](https://github.com/TomChiavegato/ray_tracer/assets/129907786/340fe0b1-90c1-4a8e-9b80-0b475e7ecdd5)
 
 <h3>Still need to do:</h4>
 <ul>
