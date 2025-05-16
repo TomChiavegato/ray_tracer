@@ -1,6 +1,6 @@
 # Ray Tracer in Rust
 
-Welcome to **Ray Tracer in Rust**, a project inspired by the "Ray Tracing in One Weekend" book series ([official site](https://raytracing.github.io/books/RayTracingInOneWeekend.html)) and Chris Biscardi's "Ray Tracing in Rust" YouTube video. This project explores the fundamentals of computer graphics, focusing on rendering realistic scenes with light and geometry.
+Welcome to **Ray Tracer in Rust**, a project inspired by the "Ray Tracing in One Weekend" book series ([official site](https://raytracing.github.io/books/RayTracingInOneWeekend.html)). This project explores the fundamentals of computer graphics, focusing on rendering realistic scenes with light and geometry.
 
 ## Project Overview
 
